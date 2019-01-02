@@ -1,0 +1,7 @@
+# /
+/.idea
+*.bak
+*~
+*.iml
+*.pyc
+config.json
