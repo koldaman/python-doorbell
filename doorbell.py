@@ -3,6 +3,7 @@ import RPi.GPIO as GPIO
 import time
 import json
 import logging
+import sys, getopt
 from blink.blinker import Blinker
 from mqtt.mqtt_client import MqttClient
 from pb.pushbullet_client import PushbulletClient
@@ -26,16 +27,25 @@ GPIO.setup(RING_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-# c_handler = logging.StreamHandler()
-# c_handler.setLevel(logging.DEBUG)
-# c_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# c_handler.setFormatter(c_format)
-# logger.addHandler(c_handler)
 
 
 class Doorbell:
 
-	def __init__(self):
+	def __init__(self, argv):
+		config_file_path = "/home/pi/projects/doorbell/config.json"
+		try:
+			opts, args = getopt.getopt(argv, "hc:", ["configfile="])
+		except getopt.GetoptError:
+			print 'doorbell.py -c <configfile>'
+			sys.exit(2)
+		for opt, arg in opts:
+			if opt == '-h':
+				print 'doorbell.py -c <configfile>'
+				sys.exit()
+			elif opt in ("-c", "--configfile"):
+				config_file_path = arg
+		logger.debug("Config file path: {}".format(config_file_path))
+
 		self.door_state = False
 		self.old_door_state = self.door_state
 		self.door_debounce_state = self.door_state
@@ -48,7 +58,7 @@ class Doorbell:
 		self.ring_timeout_notified = False
 		self.blink = Blinker(BLINK_PIN)
 		self.blink.start(Blinker.HEARTBEAT)
-		self.config = self.load_config()
+		self.config = self.load_config(config_file_path)
 		self.mqtt_client = MqttClient(self.config["mqtt"]["host"], self.config["mqtt"]["port"], self.config["mqtt"]["channel"])
 		pushbullet_config_list = self.config["pushbullet"]
 		self.pbs_ring = []
@@ -63,8 +73,8 @@ class Doorbell:
 		self.connection_checker.check_continously()
 
 	@staticmethod
-	def load_config():
-		with open('/home/pi/tmpPy/sample/config.json') as json_data_file:
+	def load_config(path):
+		with open(path) as json_data_file:
 			data = json.load(json_data_file)
 		return data
 
@@ -171,7 +181,7 @@ if __name__ == "__main__":
 
 	logger.debug('Starting up')
 
-	doorbell = Doorbell()
+	doorbell = Doorbell(sys.argv[1:])
 	logger.debug('Config {}'.format(doorbell.config))
 
 	try:
