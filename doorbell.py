@@ -59,7 +59,12 @@ class Doorbell:
 		self.blink = Blinker(BLINK_PIN)
 		self.blink.start(Blinker.HEARTBEAT)
 		self.config = self.load_config(config_file_path)
-		self.mqtt_client = MqttClient(self.config["mqtt"]["host"], self.config["mqtt"]["port"], self.config["mqtt"]["channel"])
+		self.mqtt_client = MqttClient(
+			self.config["mqtt"]["host"],
+			self.config["mqtt"]["port"],
+			self.config["mqtt"]["client"],
+			self.config["mqtt"]["channel"]
+		)
 		pushbullet_config_list = self.config["pushbullet"]
 		self.pbs_ring = []
 		self.pbs_door = []

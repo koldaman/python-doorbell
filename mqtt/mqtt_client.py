@@ -8,17 +8,25 @@ logger = logging.getLogger(__name__)
 
 class MqttClient:
 
-	def __init__(self, host, port, channel):
+	def __init__(self, host, port, client, channel):
 		self.channel = channel
-		self.mqttc = mqtt.Client()
+		self.mqttc = mqtt.Client(client)
 		self.mqttc.on_connect = self._on_connect
+		self.mqttc.on_disconnect = self._on_disconnect
 		self.mqttc.on_publish = self._on_publish
 		self.mqttc.connect(host, port, 60)
+		self.mqttc.loop_start()
 
-	def _on_connect(mqttc, obj, flags, rc):
-		logger.debug("MQTT connect result: " + str(rc))
+	def _on_connect(self, mqttc, userdata, flags, rc):
+		if rc == 0:
+			logger.debug("Connected to MQTT OK. Returned code {}".format(str(rc)))
+		else:
+			logger.debug("Bad MQTT connection. Returned code {}".format(str(rc)))
 
-	def _on_publish(mqttc, obj, mid):
+	def _on_disconnect(self, client, userdata, rc):
+		logging.info("MQTT disconnected. Reason {}".format(str(rc)))
+
+	def _on_publish(self, mqttc, obj, mid):
 		logger.debug("MQTT message published: " + str(mid))
 
 	def send(self, channelPostfix, topic, meter, device, value):
@@ -29,6 +37,7 @@ class MqttClient:
 		time.sleep(0.05)
 
 	def close(self):
+		self.mqttc.loop_stop()
 		self.mqttc.disconnect()
 		logger.debug("MQTT disconnected")
 
