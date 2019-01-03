@@ -160,6 +160,8 @@ class Doorbell:
 		self.door_state = GPIO.input(DOOR_PIN)
 		self.ring_state = GPIO.input(RING_PIN)
 		self.check_for_change()
+		# just to ease CPU
+		time.sleep(0.05)
 
 	def pushbullet_ring_notify(self):
 		if self.ring_collector:
