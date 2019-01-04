@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import RPi.GPIO as GPIO
 import time
+import threading
 import json
 import logging
 import sys, getopt
@@ -8,7 +9,7 @@ from blink.blinker import Blinker
 from mqtt.mqtt_client import MqttClient
 from pb.pushbullet_client import PushbulletClient
 from conn.connection_checker import ConnectionChecker
-
+from flask import Flask, render_template
 
 ONLINE_CHECK_INTERVAL = 20  # check for connectivity each 20 secs
 RING_TIMEOUT = 5  # 5secs max ringing time
@@ -27,6 +28,22 @@ GPIO.setup(RING_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!123qpiewtzalskdO6er68'
+
+doorbell = None
+
+
+@app.route("/")
+def index():
+	return "Doorbell API"
+
+@app.route("/ring/<int:delay>")
+def ring(delay):
+	if doorbell:
+		doorbell.ring(delay)
+	return "Ringing {}".format(delay)
 
 
 class Doorbell:
@@ -51,13 +68,12 @@ class Doorbell:
 		self.door_debounce_state = self.door_state
 		self.door_debounce_time = 0
 		self.ring_state = True
+		self.explicit_ring = False
 		self.old_ring_state = self.ring_state
 		self.ring_collector = []
 		self.last_ring_event_start = 0
 		self.last_ring_event_stop  = 0
 		self.ring_timeout_notified = False
-		self.blink = Blinker(BLINK_PIN)
-		self.blink.start(Blinker.HEARTBEAT)
 		self.config = self.load_config(config_file_path)
 		self.mqtt_client = MqttClient(
 			self.config["mqtt"]["host"],
@@ -74,6 +90,8 @@ class Doorbell:
 			if pb_config["door"]:
 				self.pbs_door.append(PushbulletClient(pb_config["apiKey"]))
 		self.is_online = False
+		self.blink = Blinker(BLINK_PIN)
+		self.blink.start(Blinker.HEARTBEAT)
 		self.connection_checker = ConnectionChecker().set_check_delay(ONLINE_CHECK_INTERVAL).set_change_fc(self.connection_state_changed)
 		self.connection_checker.check_continously()
 
@@ -136,6 +154,9 @@ class Doorbell:
 	def check_for_change(self):
 		now = time.time()
 
+		if self.explicit_ring:
+			return
+
 		# door debounce prevention
 		if self.door_debounce_state != self.door_state:
 			self.door_debounce_time = now
@@ -179,24 +200,54 @@ class Doorbell:
 	def set_relay_state(self, state):
 		GPIO.output(RELAY_PIN, state)
 
-	def stop(self):
+	def ring(self, delay):
+		delay = min(delay, 5000)
+		logger.debug('Ringing {}ms...'.format(delay))
+		self.ring_state = False
+		self.explicit_ring = True
+		self.state_changed(ring_state_changed=True)
+		time.sleep(delay/1000.0)
+		self.ring_state = True
+		self.explicit_ring = False
+		self.state_changed(ring_state_changed=True)
+
+
+def stop(self):
 		self.blink.stop()
 		self.mqtt_client.close()
 		self.connection_checker.stop()
 
-if __name__ == "__main__":
 
+def run_doorbell():
 	logger.debug('Starting up')
 
-	doorbell = Doorbell(sys.argv[1:])
-	logger.debug('Config {}'.format(doorbell.config))
+	init_ok = False
+	while not init_ok:
+		try:
+			d = Doorbell(sys.argv[1:])
+			init_ok = True
+		except:
+			logger.exception('Failed initialization doorbell')
+			time.sleep(3)  # wait 3 secs
+
+	logger.debug('Config {}'.format(d.config))
+
+	globals()['doorbell'] = d
 
 	try:
 		while True:
-			doorbell.read()
+			d.read()
 	except (KeyboardInterrupt, SystemExit):
 		logger.debug('Finished')
 		raise
 	finally:
-		doorbell.stop()
+		d.stop()
 		GPIO.cleanup()
+
+
+if __name__ == "__main__":
+
+	thread = threading.Thread(target=run_doorbell)
+	thread.start()
+
+	app.run(host="0.0.0.0", port=8089, debug=False)
