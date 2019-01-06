@@ -118,8 +118,6 @@ class Doorbell:
 
 		blink_style = Blinker.HEARTBEAT if self.is_online else Blinker.ERROR
 
-		logger.debug('Online: {}'.format(self.is_online))
-
 		if self.door_state:
 			blink_style = Blinker.QUICK
 		elif not self.ring_state:
@@ -187,13 +185,13 @@ class Doorbell:
 	def pushbullet_ring_notify(self):
 		if self.ring_collector:
 			count = len(self.ring_collector)
-			logger.debug('Sending {} ring notification to pushbullet: {}'.format(count, self.ring_collector))
+			logger.debug('Sending {} pushbullet ring notifications to {} clients: {}'.format(count, len(self.pbs_ring), self.ring_collector))
 			for pb in self.pbs_ring:
 				pb.send("Doorbell", "Ringing {} x".format(count))
 		self.ring_collector = []
 
 	def pushbullet_door_notify(self, state):
-		logger.debug('Sending door notification to pushbullet: {}'.format(state))
+		logger.debug('Sending pushbullet door notification to {} clients: {}'.format(len(self.pbs_door), state))
 		for pb in self.pbs_door:
 			pb.send("Door", state)
 
@@ -211,14 +209,13 @@ class Doorbell:
 		self.explicit_ring = False
 		self.state_changed(ring_state_changed=True)
 
-
-def stop(self):
+	def stop(self):
 		self.blink.stop()
 		self.mqtt_client.close()
 		self.connection_checker.stop()
 
 
-def run_doorbell():
+def run_doorbell(stop_event):
 	logger.debug('Starting up')
 
 	init_ok = False
@@ -235,8 +232,9 @@ def run_doorbell():
 	globals()['doorbell'] = d
 
 	try:
-		while True:
+		while not stop_event.is_set():
 			d.read()
+		logger.debug('Finishing doorbell thread')
 	except (KeyboardInterrupt, SystemExit):
 		logger.debug('Finished')
 		raise
@@ -247,7 +245,10 @@ def run_doorbell():
 
 if __name__ == "__main__":
 
-	thread = threading.Thread(target=run_doorbell)
+	thread_stop = threading.Event()
+	thread = threading.Thread(target=run_doorbell, args=[thread_stop])
+	thread.daemon = True
 	thread.start()
 
 	app.run(host="0.0.0.0", port=8089, debug=False)
+	thread_stop.set()
