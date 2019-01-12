@@ -30,11 +30,14 @@ class MqttClient:
 		logger.debug("MQTT message published: " + str(mid))
 
 	def send(self, channelPostfix, topic, meter, device, value):
-		channel_final = self.channel + "/" + channelPostfix
-		msg = json.dumps({"topic": topic, "meter": meter, "dev": device, "value": value})
-		self.mqttc.publish(channel_final, msg)
-		logger.debug(channel_final + ": " + msg)
-		time.sleep(0.05)
+		try:
+			channel_final = self.channel + "/" + channelPostfix
+			msg = json.dumps({"topic": topic, "meter": meter, "dev": device, "value": value})
+			self.mqttc.publish(channel_final, msg)
+			logger.debug(channel_final + ": " + msg)
+			time.sleep(0.05)
+		except Exception as ex:
+			logger.exception('Error sending MQTT message')
 
 	def close(self):
 		self.mqttc.loop_stop()

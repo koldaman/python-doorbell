@@ -1,6 +1,9 @@
 import socket
 import time
 import threading
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ConnectionChecker:
 
@@ -25,7 +28,7 @@ class ConnectionChecker:
 			socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.host, self.port))
 			return True
 		except Exception as ex:
-			print ex.message
+			logger.exception('Error checking online status')
 			return False
 
 	def set_check_delay(self, delay):

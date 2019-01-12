@@ -1,4 +1,7 @@
 from pushbullet import Pushbullet
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PushbulletClient:
@@ -7,7 +10,10 @@ class PushbulletClient:
 		self.pb = Pushbullet(api_key)
 
 	def send(self, title, text):
-		return self.pb.push_note(title, text)
+		try:
+			return self.pb.push_note(title, text)
+		except Exception as ex:
+			logger.exception('Error sending Pushbullet notification')
 
 if __name__ == "__main__":
 
