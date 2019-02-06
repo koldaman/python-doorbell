@@ -21,10 +21,16 @@ BLINK_PIN = 18
 DOOR_PIN = 21
 RING_PIN = 13
 RELAY_PIN = 15
-GPIO.setup(BLINK_PIN,  GPIO.OUT)
-GPIO.setup(RELAY_PIN,  GPIO.OUT)
-GPIO.setup(DOOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(RING_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+ENERGY1_PIN = 17  # electricity measuring
+ENERGY2_PIN = 27
+ENERGY3_PIN = 22
+GPIO.setup(BLINK_PIN,   GPIO.OUT)
+GPIO.setup(RELAY_PIN,   GPIO.OUT)
+GPIO.setup(DOOR_PIN,    GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(RING_PIN,    GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(ENERGY1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)  # vs GPIO.PUD_UP
+GPIO.setup(ENERGY2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(ENERGY3_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -94,6 +100,13 @@ class Doorbell:
 		self.blink.start(Blinker.HEARTBEAT)
 		self.connection_checker = ConnectionChecker().set_check_delay(ONLINE_CHECK_INTERVAL).set_change_fc(self.connection_state_changed)
 		self.connection_checker.check_continously()
+		self.register_handlers()
+
+	def register_handlers(self):
+		GPIO.add_event_detect(ENERGY1_PIN, GPIO.RISING, callback=self.energy_pin_callback, bouncetime=50)
+
+	def energy_pin_callback(self, pin):
+		logger.debug('PIN: {} went UP'.format(pin))
 
 	@staticmethod
 	def load_config(path):
