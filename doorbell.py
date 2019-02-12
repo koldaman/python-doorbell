@@ -16,12 +16,15 @@ RING_TIMEOUT = 5  # 5secs max ringing time
 PUSHBULLET_SEND_DELAY = 2  # 2secs delay when sending pushbullet notification
 DEBOUNCE_DELAY_MS = 0.05  # delay in secs
 
+TICK_KWH = 1.0 / 2000  # value in kWh per tick
+TICK_EVERY = 100       # sumarization ticks (tick every X ticks)
+
 GPIO.setmode(GPIO.BCM)
-BLINK_PIN = 18
+BLINK_PIN = 23
 DOOR_PIN = 21
 RING_PIN = 13
 RELAY_PIN = 15
-ENERGY1_PIN = 17  # electricity measuring
+ENERGY1_PIN = 4  # electricity measuring
 ENERGY2_PIN = 27
 ENERGY3_PIN = 22
 GPIO.setup(BLINK_PIN,   GPIO.OUT)
@@ -96,6 +99,7 @@ class Doorbell:
 			if pb_config["door"]:
 				self.pbs_door.append(PushbulletClient(pb_config["apiKey"]))
 		self.is_online = False
+		self.tick_counter = 0
 		self.blink = Blinker(BLINK_PIN)
 		self.blink.start(Blinker.HEARTBEAT)
 		self.connection_checker = ConnectionChecker().set_check_delay(ONLINE_CHECK_INTERVAL).set_change_fc(self.connection_state_changed)
@@ -103,10 +107,27 @@ class Doorbell:
 		self.register_handlers()
 
 	def register_handlers(self):
-		GPIO.add_event_detect(ENERGY1_PIN, GPIO.RISING, callback=self.energy_pin_callback, bouncetime=50)
+		logger.debug('Registering energy PIN handlers')
+		GPIO.add_event_detect(ENERGY1_PIN, GPIO.RISING, callback=self.energy_pin_callback, bouncetime=30)
+		GPIO.add_event_detect(ENERGY2_PIN, GPIO.RISING, callback=self.energy_pin_callback, bouncetime=30)
+		GPIO.add_event_detect(ENERGY3_PIN, GPIO.RISING, callback=self.energy_pin_callback, bouncetime=30)
 
 	def energy_pin_callback(self, pin):
 		logger.debug('PIN: {} went UP'.format(pin))
+		self.tick_counter += 1
+		energy_id = "X"
+		if pin == ENERGY1_PIN:
+			energy_id = "1"
+		elif pin == ENERGY2_PIN:
+			energy_id = "2"
+		elif pin == ENERGY3_PIN:
+			energy_id = "3"
+
+		if self.tick_counter >= TICK_EVERY:
+			self.mqtt_client.send("home/energy", "energy", "electricity", "rpiZero", TICK_KWH * self.tick_counter)
+			self.tick_counter = 0
+
+		self.mqtt_client.send("home/energy", "energy", "electricity" + energy_id + "-realtime", "rpiZero", TICK_KWH)
 
 	@staticmethod
 	def load_config(path):
