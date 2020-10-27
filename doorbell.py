@@ -127,7 +127,7 @@ class Doorbell:
 			self.mqtt_client.send("home/energy", "energy", "electricity", "rpiZero", TICK_KWH * self.tick_counter)
 			self.tick_counter = 0
 
-		self.mqtt_client.send("home/energy", "energy", "electricity" + energy_id + "-realtime", "rpiZero", TICK_KWH)
+		self.mqtt_client.send("home/energy/"  + energy_id, "energy", "electricity" + energy_id + "-realtime", "rpiZero", TICK_KWH)
 
 	@staticmethod
 	def load_config(path):
